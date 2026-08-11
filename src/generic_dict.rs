@@ -51,9 +51,11 @@ fn generate_definition_text(
     }
 
     // Header
-    text.push_str("<div>");
+    // Need to force the default Kobo Chinese font, otherwise simplified or Chinese-only characters will not be displayed at all
+    let font_style = "style=\"font-family: 'AR UDJingxihei' !important;\"";
+    text.push_str(format!("<div {}>", font_style).as_str());
     let default = entry.simplified();
-    text.push_str("<b>");
+    text.push_str("<br>");
     text.push_str(default);
     let alt = entry.traditional();
     if default != alt {
