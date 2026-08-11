@@ -5,7 +5,9 @@ edition = "2024"
 
 [dependencies]
 cedict = "0.3.2"
+clap = "4.6.6"
 flate2 = "1.1.9"
+pinyin_zhuyin = "0.2.0"
 tempfile = "3.27.0"
 unicode_categories = "0.1.1"
 zip = "8.6.0"
