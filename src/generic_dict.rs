@@ -1,5 +1,10 @@
+use once_cell::sync::Lazy;
+use regex::Regex;
+use pinyin_zhuyin::{encode_pinyin as encode_pinyin_, encode_zhuyin as encode_zhuyin_};
+
 use crate::cedict;
-use pinyin_zhuyin::{encode_pinyin, encode_zhuyin};
+
+static SPLIT_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"[,\s·]+").unwrap());
 
 pub struct Entry {
     // The integer here is a very rough priority ranking indicating
@@ -66,18 +71,47 @@ fn get_character_variants<'a>(
     }
 }
 
+fn normalize(s: &str) -> String {
+    // Convert to lowercase and convert "u:" to "v" (representing ü)
+    s.to_lowercase().replace("u:", "v")
+}
+
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+    }
+}
+
+fn encode_pinyin(s: &str) -> Option<String> {
+    // Preserve capital letter from raw pinyin, e.g. Bei3 -> Běi, Ai4 -> Ài
+    match s.chars().next() {
+        Some(c) => {
+            let encoded = encode_pinyin_(normalize(s));
+            if c.is_uppercase() { encoded.map(|enc| capitalize_first(&enc)) }
+            else { encoded }
+        }
+        None => None
+    }
+}
+
+fn encode_zhuyin(s: &str) -> Option<String> {
+    encode_zhuyin_(normalize(s))
+}
+
 fn get_pronunciation(
     entry: &cedict::DictEntry,
     entry_settings: &EntrySettings,
 ) -> String {
     // CC-CEDICT entry is raw pinyin with numbers
-    let raw_pinyin = entry.pinyin().to_string();
+    let raw_pinyin = entry.pinyin();
     let encode = match entry_settings.pronunciation_mode {
         PronunciationMode::Pinyin => encode_pinyin,
         PronunciationMode::Zhuyin => encode_zhuyin,
     };
 
-    raw_pinyin.split_whitespace()
+    SPLIT_PATTERN.split(raw_pinyin)
         .map(|syllable| {
             match encode(syllable) {
                 Some(encoded) => encoded,
