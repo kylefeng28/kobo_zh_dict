@@ -8,6 +8,7 @@ use std::path::Path;
 
 use flate2::read::GzEncoder;
 use unicode_categories::UnicodeCategories;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::generic_dict::Entry;
 
@@ -150,7 +151,18 @@ pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Resul
     zip_out.write_all(words_original.as_bytes()).unwrap();
 
     // Write all of the prefix entry files.
+    let sty = ProgressStyle::with_template(
+        "{prefix:<10} [{elapsed}] {bar:20.green/blue} {pos:>7}/{len:7} {msg}",
+    )
+        .unwrap();
+    let bar = ProgressBar::new(prefix_entries.len() as u64);
+    bar.set_prefix("Writing files...");
+    bar.set_style(sty);
+
     for (prefix, prefix_entry_list) in prefix_entries.iter() {
+        let filename = format!("{}.html", prefix);
+        bar.set_message(format!("file: {filename}"));
+        bar.inc(1);
         // Generate the html.
         let mut html = String::new();
         html.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?><html>");
@@ -170,12 +182,13 @@ pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Resul
         // Write the file to the zip file.
         zip_out
             .start_file(
-                &format!("{}.html", prefix),
+                &filename,
                 options,
             )
             .unwrap();
         zip_out.write_all(&gzhtml).unwrap();
     }
+    bar.finish();
 
     zip_out.finish().unwrap();
 

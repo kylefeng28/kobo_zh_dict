@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 use pinyin_zhuyin::{encode_pinyin as encode_pinyin_, encode_zhuyin as encode_zhuyin_};
+use std::fs;
 
 use crate::cedict;
 
@@ -40,13 +41,18 @@ pub fn generate_entries(
     entry_settings: &EntrySettings,
 ) -> Vec<Entry> {
     let mut entries = Vec::new();
+    let mut errors: Vec<String> = vec![];
 
     for entry in cedict_entries.iter() {
         entries.push(Entry {
             keys: generate_keys(&entry),
-            definition: generate_definition_text(&entry, &entry_settings),
+            definition: generate_definition_text(&entry, &entry_settings, &mut errors),
         });
     }
+
+    let errors_file = "errors.txt";
+    eprintln!("Found {} errors, saved to {}", errors.len(), errors_file);
+    fs::write(errors_file, errors.join("\n")).unwrap();
 
     entries.sort_by_key(|a| a.keys[0].0.len());
 
@@ -103,6 +109,7 @@ fn encode_zhuyin(s: &str) -> Option<String> {
 fn get_pronunciation(
     entry: &cedict::DictEntry,
     entry_settings: &EntrySettings,
+    errors: &mut Vec<String>,
 ) -> String {
     // CC-CEDICT entry is raw pinyin with numbers
     let raw_pinyin = entry.pinyin();
@@ -111,22 +118,28 @@ fn get_pronunciation(
         PronunciationMode::Zhuyin => encode_zhuyin,
     };
 
-    SPLIT_PATTERN.split(raw_pinyin)
+    let result = SPLIT_PATTERN.split(raw_pinyin)
         .map(|syllable| {
             match encode(syllable) {
                 Some(encoded) => encoded,
                 None => {
-                    println!("warning: invalid pinyin '{}' in '{}'", syllable, raw_pinyin);
+                    errors.push(format!(
+                            "{}: invalid pinyin syllable '{}' in '{}'",
+                            entry.traditional(), syllable, raw_pinyin));
+
                     syllable.to_string()
                 }
             }
         })
-        .collect::<String>()
+        .collect::<String>();
+
+    result
 }
 
 fn generate_definition_text(
     entry: &cedict::DictEntry,
     entry_settings: &EntrySettings,
+    errors: &mut Vec<String>,
 ) -> String {
     let mut text = String::new();
     if entry_settings.add_separators {
@@ -147,7 +160,7 @@ fn generate_definition_text(
     }
     text.push_str("</b> ");
 
-    text.push_str(get_pronunciation(entry, entry_settings).as_str());
+    text.push_str(get_pronunciation(entry, entry_settings, errors).as_str());
 
     text.push_str("<br/>");
 

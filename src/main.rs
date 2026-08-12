@@ -53,8 +53,6 @@ fn main() -> io::Result<()> {
         pronunciation_mode: pronunciation_mode.clone(),
     };
 
-    let entries = generate_entries(&cedict_entries, &entry_settings);
-
     println!("Using CC-CEDICT file at {}", cedict_filename);
     println!("Will output Kobo dictionary to {}", output_filename);
     println!("Character mode: {:?}", character_mode);
@@ -62,8 +60,9 @@ fn main() -> io::Result<()> {
     println!();
 
     println!("Generating Kobo dictionary...");
+    let entries = generate_entries(&cedict_entries, &entry_settings);
     kobo::write_dictionary(&entries, std::path::Path::new(output_filename))?;
-    println!("Wrote Kobo dictionary to {}", output_filename);
+    println!("Wrote Kobo dictionary to {} with {} entries", output_filename, entries.len());
 
     Ok(())
 }
