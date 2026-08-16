@@ -12,6 +12,53 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::generic_dict::Entry;
 
+pub fn build_marisa_trie(words_original: &String) -> Vec<u8> {
+    // Write words to a temporary file.
+    let mut words_file = tempfile::NamedTempFile::new().unwrap();
+    words_file
+        .as_file_mut()
+        .write_all(words_original.as_bytes())
+        .unwrap();
+    words_file.as_file_mut().sync_all().unwrap();
+    let words_path = words_file.into_temp_path();
+
+    // Create a path for the marisa file.
+    let mut marisa_path = words_path.to_path_buf();
+    marisa_path.set_extension(".marisa.tmp");
+
+    // Run marisa-build to create the marisa trie data.
+    match std::process::Command::new("marisa-build")
+        .arg("-o")
+        .arg(marisa_path.as_os_str())
+        .arg(words_path.as_os_str())
+        .output()
+    {
+        Ok(output) => {
+            if !output.status.success() {
+                eprintln!(
+                    "Error: \"marisa-build\" exited with a failure:\n{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Error: attempt to run \"marisa-build\" failed: {}", e);
+            if e.kind() == std::io::ErrorKind::NotFound {
+                eprintln!("Make sure you have marisa-build installed and in your path, and that you have the permissions needed to run it.");
+            }
+            std::process::exit(1);
+        }
+    };
+
+    // Read in the marisa file data.
+    let mut data = Vec::new();
+    let mut marisa_file = std::fs::File::open(&marisa_path).unwrap();
+    marisa_file.read_to_end(&mut data).unwrap();
+
+    data
+}
+
 pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Result<()> {
     // Sorted, de-duplicated list of keys.
     let all_keys = {
@@ -46,52 +93,7 @@ pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Resul
     };
 
     // Create the marisa tree words data.
-    let words = {
-        // Write words to a temporary file.
-        let mut words_file = tempfile::NamedTempFile::new().unwrap();
-        words_file
-            .as_file_mut()
-            .write_all(words_original.as_bytes())
-            .unwrap();
-        words_file.as_file_mut().sync_all().unwrap();
-        let words_path = words_file.into_temp_path();
-
-        // Create a path for the marisa file.
-        let mut marisa_path = words_path.to_path_buf();
-        marisa_path.set_extension(".marisa.tmp");
-
-        // Run marisa-build to create the marisa trie data.
-        match std::process::Command::new("marisa-build")
-            .arg("-o")
-            .arg(marisa_path.as_os_str())
-            .arg(words_path.as_os_str())
-            .output()
-        {
-            Ok(output) => {
-                if !output.status.success() {
-                    eprintln!(
-                        "Error: \"marisa-build\" exited with a failure:\n{}",
-                        String::from_utf8_lossy(&output.stderr)
-                    );
-                    std::process::exit(1);
-                }
-            }
-            Err(e) => {
-                eprintln!("Error: attempt to run \"marisa-build\" failed: {}", e);
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    eprintln!("Make sure you have marisa-build installed and in your path, and that you have the permissions needed to run it.");
-                }
-                std::process::exit(1);
-            }
-        };
-
-        // Read in the marisa file data.
-        let mut data = Vec::new();
-        let mut marisa_file = std::fs::File::open(&marisa_path).unwrap();
-        marisa_file.read_to_end(&mut data).unwrap();
-
-        data
-    };
+    let words = build_marisa_trie(&words_original);
 
     //----------------------------------------------------------------
     // Duplicate the entries into a prefix list.
