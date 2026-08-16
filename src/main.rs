@@ -9,7 +9,7 @@ use crate::generic_dict::{generate_entries, EntrySettings};
 
 // Need to output as a Japanese dictionary even though this is for Chinese,
 // since Kobo has specially handling for kanji/hanzi characters but only if the locale is "ja"
-const DEFAULT_OUTPUT: &str = "dicthtml-ja-en.zip";
+const DEFAULT_OUTPUT: &str = "dicthtml-zh-en.zip";
 const DEFAULT_CEDICT: &str = "cedict_1_0_ts_utf-8_mdbg.txt";
 
 fn main() -> io::Result<()> {

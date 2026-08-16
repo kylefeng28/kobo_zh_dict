@@ -97,14 +97,23 @@ pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Resul
 
     //----------------------------------------------------------------
     // Duplicate the entries into a prefix list.
+    // Also create the `prefix_exceptions` and `prefix_exceptions.original` data.
+    // This is needed to avoid the Japanese locale workaround, e.g. renaming to dicthtml-ja-en.html
+    // to appear as a Japanese dictionary. See these for more information:
+    // https://github.com/reader-dict/monolingual/issues/2748
+    // https://github.com/pgaskin/dictutil/issues/14#issuecomment-698456338
+    // https://github.com/pgaskin/dictutil/issues/16
 
     // prefix -> Vec<(key, definition text, priority)>
     let mut prefix_entries: HashMap<String, Vec<(String, String, u32)>> = HashMap::new();
+    // new-line-separated text list of {word}\t{prefix}
+    let mut prefix_exceptions_original = String::new();
 
     for entry in entries.iter() {
         for key in entry.keys.iter() {
             let prefix = dictionary_prefix(&key.0);
 
+            prefix_exceptions_original.push_str(&format!("{}\t{}\n", key.0, prefix.clone()));
             let a = prefix_entries.entry(prefix).or_insert(Vec::new());
             a.push((key.0.clone(), entry.definition.clone(), key.1));
         }
@@ -135,6 +144,9 @@ pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Resul
         entries.sort_by_key(|a| (a.2, -(a.1.len() as isize)));
     }
 
+    // Create the marisa tree prefix_exceptions data.
+    let prefix_exceptions = build_marisa_trie(&prefix_exceptions_original);
+
     //----------------------------------------------------------------
     // Write the Kobo dictionary file.
 
@@ -151,6 +163,14 @@ pub fn write_dictionary(entries: &[Entry], output_path: &Path) -> std::io::Resul
         .start_file("words.original", options)
         .unwrap();
     zip_out.write_all(words_original.as_bytes()).unwrap();
+    zip_out
+        .start_file("prefix_exceptions", options)
+        .unwrap();
+    zip_out.write_all(&prefix_exceptions).unwrap();
+    zip_out
+        .start_file("prefix_exceptions.original", options)
+        .unwrap();
+    zip_out.write_all(prefix_exceptions_original.as_bytes()).unwrap();
 
     // Write all of the prefix entry files.
     let sty = ProgressStyle::with_template(

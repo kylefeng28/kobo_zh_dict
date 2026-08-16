@@ -14,7 +14,7 @@ else
 fi
 
 gen() {
-  cargo run -- -c "$1" -p "$2" --output "dicthtml-ja-en-$1-$2.zip"
+  cargo run -- -c "$1" -p "$2" --output "dicthtml-zh-en-$1-$2.zip"
 }
 
 gen simplified pinyin
